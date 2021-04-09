@@ -2,14 +2,13 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"time"
-
+	"strconv"
 	"golang.org/x/crypto/ssh"
 	"moul.io/http2curl"
 )
@@ -70,11 +69,11 @@ func DoHTTPRequest(method string, url string, headers map[string]string, body []
 	return
 }
 
-type SSHOptions struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
-	User string `json:"user"`
-}
+// type SSHOptions struct {
+// 	Host string `json:"host"`
+// 	Port int    `json:"port"`
+// 	User string `json:"user"`
+// }
 
 const (
 	// KataGoBin the bin file path
@@ -89,41 +88,43 @@ const (
 
 func main() {
 	args := os.Args[1:]
-	if len(args) < 2 {
-		log.Printf("ERROR usage: colab-katago USER_NAME USER_PASSWORD")
+	if len(args) < 3 {
+		log.Printf("ERROR usage: colab-katago HOSTNAME PORT USER_PASSWORD")
 		return
 	}
-	username := args[0]
+	hostname := args[0]
 	userpassword := args[1]
+	port := args[2]
 	var newConfig *string = nil
-	if len(args) >= 3 {
-		newConfig = &args[2]
+	if len(args) >= 4 {
+		newConfig = &args[3]
 	}
-	log.Printf("INFO using user name: %s password: %s\n", username, userpassword)
-	sshJSONURL := "https://kata-config.oss-cn-beijing.aliyuncs.com/" + username + ".ssh.json"
-	response, err := DoHTTPRequest("GET", sshJSONURL, nil, nil)
-	if err != nil {
-		log.Printf("ERROR error requestting url: %s, err: %+v\n", sshJSONURL, err)
-		return
-	}
-	log.Printf("ssh options\n%s", response)
-	sshoptions := SSHOptions{}
+	log.Printf("INFO using hostname: %s port: %s password: %s\n", hostname, port, userpassword)
+	// sshJSONURL := "https://kata-config.oss-cn-beijing.aliyuncs.com/" + username + ".ssh.json"
+	// response, err := DoHTTPRequest("GET", sshJSONURL, nil, nil)
+	// if err != nil {
+	// 	log.Printf("ERROR error requestting url: %s, err: %+v\n", sshJSONURL, err)
+	// 	return
+	// }
+	// log.Printf("ssh options\n%s", response)
+	// sshoptions := SSHOptions{}
 	// parse json
-	err = json.Unmarshal([]byte(response), &sshoptions)
-	if err != nil {
-		log.Printf("ERROR failed parsing json: %s\n", response)
-		return
-	}
+	// err = json.Unmarshal([]byte(response), &sshoptions)
+	// if err != nil {
+	// 	log.Printf("ERROR failed parsing json: %s\n", response)
+	// 	return
+	// }
 
 	config := &ssh.ClientConfig{
 		Timeout:         30 * time.Second,
-		User:            sshoptions.User,
+		User:            "root",
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
 	config.Auth = []ssh.AuthMethod{ssh.Password(userpassword)}
 
-	addr := fmt.Sprintf("%s:%d", sshoptions.Host, sshoptions.Port)
+	portnum, err := strconv.Atoi(port)
+	addr := fmt.Sprintf("%s:%d", hostname , portnum)
 	sshClient, err := ssh.Dial("tcp", addr, config)
 	if err != nil {
 		log.Fatal("failed to create ssh client", err)
@@ -143,7 +144,7 @@ func main() {
 
 		cmd := fmt.Sprintf("%s %s", KataGoChangeConfigScript, *newConfig)
 		log.Printf("DEBUG running commad:%s\n", cmd)
-		configFile = fmt.Sprintf("/content/gtp_colab_%s.cfg", *newConfig)
+		configFile = fmt.Sprintf("/content/katago-colab/config/gtp_colab_%s.cfg", *newConfig)
 		session.Run(cmd)
 
 	}
